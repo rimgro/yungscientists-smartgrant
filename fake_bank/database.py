@@ -6,7 +6,7 @@ import os
 from models import TransactionType
 
 # Получение URL базы данных из переменных окружения
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bank_service.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/bank_service.db")
 
 # Для SQLite нужно указать check_same_thread=False
 if DATABASE_URL.startswith("sqlite"):

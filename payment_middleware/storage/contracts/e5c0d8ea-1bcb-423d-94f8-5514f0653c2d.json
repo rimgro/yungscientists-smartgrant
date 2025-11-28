@@ -1,0 +1,23 @@
+{
+  "contract_id": "e5c0d8ea-1bcb-423d-94f8-5514f0653c2d",
+  "name": "Block Supermarkets and Restaurants",
+  "contract_type": "mcc_limit",
+  "parameters": {
+    "allowed_mcc": [
+      "5912",
+      "5311",
+      "4121",
+      "5541"
+    ],
+    "blocked_mcc": [
+      "5411",
+      "5812"
+    ],
+    "applicable_cards": [
+      "4111111111111111"
+    ]
+  },
+  "description": "Запрет покупок в супермаркетах и ресторанах",
+  "status": "active",
+  "created_at": "2025-11-28T21:12:49.427279"
+}
