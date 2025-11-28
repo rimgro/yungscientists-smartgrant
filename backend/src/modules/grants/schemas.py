@@ -1,7 +1,7 @@
 from typing import List, Optional, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, model_validator
 
 
 class RequirementCreate(BaseModel):
@@ -12,6 +12,8 @@ class RequirementCreate(BaseModel):
 class RequirementRead(RequirementCreate):
     id: UUID
     status: str
+    proof_url: Optional[str] = Field(None, max_length=500)
+    proof_submitted_by: Optional[UUID]
 
     class Config:
         from_attributes = True
@@ -54,8 +56,15 @@ class GrantProgramRead(BaseModel):
 
 
 class GrantParticipantCreate(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
+    user_email: Optional[EmailStr] = None
     role: Literal["grantee", "supervisor"]
+
+    @model_validator(mode="after")
+    def ensure_identifier(self):
+        if not self.user_id and not self.user_email:
+            raise ValueError("Either user_id or user_email must be provided")
+        return self
 
 
 class GrantParticipantRead(BaseModel):
@@ -64,9 +73,19 @@ class GrantParticipantRead(BaseModel):
     grant_program_id: UUID
     role: str
     active: bool
+    email: Optional[str] = None
+    name: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class GrantParticipantRoleUpdate(BaseModel):
+    role: Literal["supervisor", "grantee"]
+
+
+class RequirementProofSubmit(BaseModel):
+    proof_url: str = Field(..., max_length=500)
 
 
 GrantProgramCreate.model_rebuild()

@@ -39,7 +39,7 @@ const progress = $derived(Math.min(100, Math.round((completed / total) * 100)));
 					<div class="flex items-center justify-between gap-3">
 						<div>
 							<p class="text-sm font-semibold text-slate-100">
-								#{stage.order} · {stage.name ?? `Stage ${stage.order}`}
+								#{stage.order} · Stage {stage.order}
 							</p>
 							<p class="text-xs text-slate-400">
 								${stage.amount.toLocaleString()} · {stage.requirements.length} requirements

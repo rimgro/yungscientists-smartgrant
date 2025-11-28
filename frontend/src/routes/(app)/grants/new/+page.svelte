@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import GrantCreationWizard, { type StageDraft } from '$lib/features/grants/GrantCreationWizard.svelte';
+	import GrantCreationWizard from '$lib/features/grants/GrantCreationWizard.svelte';
+	import { buildGrantPayload } from '$lib/features/grants/payload';
+	import type { StageDraft } from '$lib/features/grants/types';
 	import { pushToast } from '$lib/stores/notifications';
 	import { api } from '$lib/api';
 	import type { GrantProgram } from '$lib/types';
@@ -18,23 +20,14 @@
 		busy = true;
 		wizardStages = event.detail;
 		try {
-			const payload = {
-				name,
-				bank_account_number: bankAccount,
-				stages: wizardStages.map((stage, index) => ({
-					order: index + 1,
-					amount: stage.amount,
-					requirements: [
-						{
-							name: stage.requirement,
-							description: stage.description || ''
-						}
-					]
-				})),
-				participants: []
-			};
+			const payload = buildGrantPayload(name.trim(), bankAccount.trim(), wizardStages);
 			const grant = await api.post<GrantProgram>('/grants', payload);
-			pushToast({ title: 'Grant created', message: 'Draft saved with backend', tone: 'success', timeout: 2500 });
+			pushToast({
+				title: 'Draft saved',
+				message: 'Grant created as draft. Confirm it when you are ready to fund.',
+				tone: 'success',
+				timeout: 2500
+			});
 			await goto(`/grants/${grant.id}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Unable to create grant';

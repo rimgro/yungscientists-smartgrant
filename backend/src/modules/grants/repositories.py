@@ -1,10 +1,10 @@
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .models import GrantProgram, Requirement, Stage
+from .models import GrantProgram, Requirement, Stage, UserToGrant
 
 
 class GrantRepository:
@@ -17,7 +17,7 @@ class GrantRepository:
             .where(GrantProgram.id == grant_program_id)
             .options(
                 selectinload(GrantProgram.stages).selectinload(Stage.requirements),
-                selectinload(GrantProgram.participants),
+                selectinload(GrantProgram.participants).selectinload(UserToGrant.user),
             )
         )
         return result.scalar_one_or_none()
@@ -27,13 +27,17 @@ class GrantRepository:
         await self.session.flush()
         return program
 
-    async def list(self) -> list[GrantProgram]:
-        result = await self.session.execute(
-            select(GrantProgram).options(
+    async def list_for_user(self, user_id: str) -> list[GrantProgram]:
+        stmt = (
+            select(GrantProgram)
+            .outerjoin(UserToGrant, UserToGrant.grant_program_id == GrantProgram.id)
+            .where(or_(GrantProgram.grantor_id == user_id, UserToGrant.user_id == user_id))
+            .options(
                 selectinload(GrantProgram.stages).selectinload(Stage.requirements),
-                selectinload(GrantProgram.participants),
+                selectinload(GrantProgram.participants).selectinload(UserToGrant.user),
             )
         )
+        result = await self.session.execute(stmt)
         return list(result.scalars().unique().all())
 
     async def get_stage(self, stage_id: str) -> Optional[Stage]:
@@ -43,7 +47,7 @@ class GrantRepository:
                 .options(
                     selectinload(Stage.requirements),
                     selectinload(Stage.grant_program).selectinload(GrantProgram.stages),
-                    selectinload(Stage.grant_program).selectinload(GrantProgram.participants),
+                    selectinload(Stage.grant_program).selectinload(GrantProgram.participants).selectinload(UserToGrant.user),
                 )
         )
         return result.scalar_one_or_none()
@@ -55,7 +59,8 @@ class GrantRepository:
             .options(
                 selectinload(Requirement.stage)
                 .selectinload(Stage.grant_program)
-                .selectinload(GrantProgram.participants),
+                .selectinload(GrantProgram.participants)
+                .selectinload(UserToGrant.user),
                 selectinload(Requirement.stage).selectinload(Stage.grant_program).selectinload(GrantProgram.stages),
                 selectinload(Requirement.stage),
             )

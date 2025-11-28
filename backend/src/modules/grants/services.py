@@ -11,8 +11,10 @@ from .repositories import GrantRepository
 from .schemas import (
     GrantParticipantCreate,
     GrantParticipantRead,
+    GrantParticipantRoleUpdate,
     GrantProgramCreate,
     GrantProgramRead,
+    RequirementProofSubmit,
     RequirementRead,
     StageRead,
 )
@@ -35,12 +37,17 @@ class GrantService:
         )
         program.participants.append(UserToGrant(user_id=current_user.id, role="grantor"))
 
-        unique_participants = {p.user_id: p for p in payload.participants}
-        for participant in unique_participants.values():
-            if participant.user_id == str(current_user.id):
+        unique_participants: dict[UUID, GrantParticipantCreate] = {}
+        for participant in payload.participants:
+            resolved_id = await self._resolve_user_identifier(participant)
+            if resolved_id in unique_participants:
                 continue
-            participant_uuid = await self._ensure_user_exists(participant.user_id)
-            program.participants.append(UserToGrant(user_id=participant_uuid, role=participant.role))
+            if resolved_id == current_user.id:
+                continue
+            unique_participants[resolved_id] = participant
+
+        for participant_id, participant in unique_participants.items():
+            program.participants.append(UserToGrant(user_id=participant_id, role=participant.role))
 
         for stage_payload in sorted(payload.stages, key=lambda s: s.order):
             stage = Stage(order=stage_payload.order, amount=stage_payload.amount)
@@ -54,8 +61,8 @@ class GrantService:
         reloaded = await self.repo.get(program.id)
         return GrantProgramRead.model_validate(reloaded, from_attributes=True)
 
-    async def list_programs(self) -> list[GrantProgramRead]:
-        programs = await self.repo.list()
+    async def list_programs(self, current_user: User) -> list[GrantProgramRead]:
+        programs = await self.repo.list_for_user(current_user.id)
         return [GrantProgramRead.model_validate(p) for p in programs]
 
     async def confirm_program(self, grant_program_id: str, current_user: User) -> GrantProgramRead:
@@ -69,6 +76,13 @@ class GrantService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grant already confirmed")
         if not program.stages:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stages must be configured")
+
+        total_amount = sum(float(stage.amount) for stage in program.stages)
+        deposit_result = await self.payment_service.deposit_grant(
+            participant_id=str(program.bank_account_number), amount=total_amount
+        )
+        if deposit_result.status != "deposited":
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Grant deposit failed")
 
         program.status = "active"
         for index, stage in enumerate(sorted(program.stages, key=lambda s: s.order)):
@@ -90,7 +104,7 @@ class GrantService:
         if payload.user_id == str(current_user.id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grantor already assigned")
 
-        participant_uuid = await self._ensure_user_exists(payload.user_id)
+        participant_uuid = await self._resolve_user_identifier(payload)
         existing = next((p for p in program.participants if p.user_id == participant_uuid), None)
         if existing:
             if not existing.active:
@@ -105,6 +119,48 @@ class GrantService:
         reloaded = await self.repo.get(program.id)
         return [GrantParticipantRead.model_validate(p, from_attributes=True) for p in reloaded.participants]
 
+    async def update_participant_role(
+        self, grant_program_id: str, participant_id: str, payload: GrantParticipantRoleUpdate, current_user: User
+    ) -> list[GrantParticipantRead]:
+        program_id = self._parse_uuid(grant_program_id)
+        participant_uuid = self._parse_uuid(participant_id)
+        program = await self.repo.get(program_id)
+        if not program:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
+
+        self._ensure_role(program, current_user, allowed_roles=["grantor"])
+        participant = next((p for p in program.participants if p.id == participant_uuid), None)
+        if not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+        if participant.role == "grantor":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change grantor role")
+        participant.role = payload.role
+        await self.session.commit()
+        reloaded = await self.repo.get(program.id)
+        return [GrantParticipantRead.model_validate(p, from_attributes=True) for p in reloaded.participants]
+
+    async def remove_participant(
+        self, grant_program_id: str, participant_id: str, current_user: User
+    ) -> list[GrantParticipantRead]:
+        program_id = self._parse_uuid(grant_program_id)
+        participant_uuid = self._parse_uuid(participant_id)
+        program = await self.repo.get(program_id)
+        if not program:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
+
+        self._ensure_role(program, current_user, allowed_roles=["grantor"])
+        if program.grantor_id == participant_uuid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove grantor")
+
+        participant = next((p for p in program.participants if p.id == participant_uuid), None)
+        if not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+
+        await self.session.delete(participant)
+        await self.session.commit()
+        reloaded = await self.repo.get(program.id)
+        return [GrantParticipantRead.model_validate(p, from_attributes=True) for p in reloaded.participants]
+
     async def complete_requirement(self, requirement_id: str, current_user: User) -> RequirementRead:
         requirement_uuid = self._parse_uuid(requirement_id)
         requirement = await self.repo.get_requirement(requirement_uuid)
@@ -115,8 +171,31 @@ class GrantService:
         self._ensure_role(program, current_user, allowed_roles=["grantor", "supervisor"])
         if requirement.stage.completion_status != "active":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage is not active")
+        if not requirement.proof_url:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Proof not submitted yet")
         requirement.status = "completed"
 
+        await self.session.commit()
+        await self.session.refresh(requirement)
+        return RequirementRead.model_validate(requirement, from_attributes=True)
+
+    async def submit_requirement_proof(
+        self, requirement_id: str, payload: RequirementProofSubmit, current_user: User
+    ) -> RequirementRead:
+        requirement_uuid = self._parse_uuid(requirement_id)
+        requirement = await self.repo.get_requirement(requirement_uuid)
+        if not requirement:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requirement not found")
+
+        program = requirement.stage.grant_program
+        self._ensure_role(program, current_user, allowed_roles=["grantee"])
+        if program.status != "active" or requirement.stage.completion_status != "active":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage is not active")
+        if requirement.status == "completed":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Requirement already completed")
+
+        requirement.proof_url = payload.proof_url
+        requirement.proof_submitted_by = current_user.id
         await self.session.commit()
         await self.session.refresh(requirement)
         return RequirementRead.model_validate(requirement, from_attributes=True)
@@ -174,6 +253,16 @@ class GrantService:
         if any(role in allowed_roles for role in participant_roles):
             return
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    async def _resolve_user_identifier(self, participant: GrantParticipantCreate) -> UUID:
+        if participant.user_email:
+            user = await self.user_repo.get_by_email(participant.user_email)
+            if not user:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            return user.id
+        if participant.user_id:
+            return await self._ensure_user_exists(participant.user_id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User identifier missing")
 
     @staticmethod
     def _get_next_stage(program: GrantProgram, current_order: int) -> Stage | None:

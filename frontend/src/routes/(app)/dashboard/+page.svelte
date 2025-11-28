@@ -81,9 +81,9 @@ const txns = [
 			{/if}
 		</div>
 		<div class="space-y-4">
-			<ContractStatus state="Awaiting Oracle" />
-			<WalletConnect connected={false} walletId={walletId} />
-			<TransactionHistory items={txns} />
+			<ContractStatus state="Awaiting Oracle" stub />
+			<WalletConnect connected={false} walletId={walletId} stub />
+			<TransactionHistory items={txns} stub />
 		</div>
 	</div>
 </div>

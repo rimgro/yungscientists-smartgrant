@@ -1,11 +1,12 @@
 import uuid
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
+from src.modules.auth.models import User
 
 
 class GrantProgram(Base):
@@ -48,6 +49,8 @@ class Requirement(Base):
     name = Column(String(length=255), nullable=False)
     description = Column(String(length=500), nullable=True)
     status = Column(String(length=50), default="pending")
+    proof_url = Column(String(length=500), nullable=True)
+    proof_submitted_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     stage: Mapped[Stage] = relationship("Stage", back_populates="requirements")
 
@@ -63,3 +66,12 @@ class UserToGrant(Base):
     active = Column(Boolean, default=True)
 
     grant_program: Mapped[GrantProgram] = relationship("GrantProgram", back_populates="participants")
+    user: Mapped[User] = relationship("User")
+
+    @property
+    def email(self) -> Optional[str]:
+        return self.user.email if self.user else None
+
+    @property
+    def name(self) -> Optional[str]:
+        return self.user.name if self.user else None

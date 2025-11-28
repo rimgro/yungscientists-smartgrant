@@ -5,10 +5,13 @@
 	export let label: string;
 	export let type: InputType = 'text';
 	export let placeholder = '';
-	export let value = '';
+	export let value: string | number = '';
 	export let required = false;
 	export let error = '';
 	export let helper = '';
+	export let min: number | string | undefined = undefined;
+	export let max: number | string | undefined = undefined;
+	export let step: number | string | undefined = undefined;
 </script>
 
 <label class="space-y-2 text-sm text-slate-200" for={id}>
@@ -26,6 +29,9 @@
 		placeholder={placeholder}
 		bind:value
 		{required}
+		{min}
+		{max}
+		{step}
 		aria-invalid={error ? 'true' : 'false'}
 	/>
 

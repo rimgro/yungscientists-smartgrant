@@ -5,11 +5,19 @@ import { clearSession, getSession } from '$lib/stores/auth';
 const API_BASE_URL = (import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 const API_PREFIX = '/api/v1';
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
 type RequestOptions = RequestInit & {
 	skipAuthRedirect?: boolean;
 };
+
+export class ApiError extends Error {
+	status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.status = status;
+		this.name = 'ApiError';
+	}
+}
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
 	const session = getSession();
@@ -35,12 +43,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		if (!options.skipAuthRedirect) {
 			await goto('/login');
 		}
-		throw new Error('Unauthorized');
+		throw new ApiError('Unauthorized', response.status);
 	}
 
 	if (!response.ok) {
 		const message = await parseError(response);
-		throw new Error(message);
+		throw new ApiError(message, response.status);
 	}
 
 	if (response.status === 204) return undefined as T;

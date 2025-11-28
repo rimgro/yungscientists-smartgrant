@@ -23,3 +23,10 @@ class PaymentService:
             amount=float(stage.amount),
             reference=f"GrantStage:{stage.id}",
         )
+
+    async def deposit_grant(self, *, participant_id: str, amount: float) -> PaymentStatus:
+        """
+        Stubbed deposit used on grant confirmation. Assumes funds are deposited successfully.
+        This will be replaced with a real gateway call later.
+        """
+        return PaymentStatus(transaction_id="local-deposit", status="deposited")

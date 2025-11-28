@@ -7,16 +7,18 @@
 		timestamp: string;
 	};
 
-	let { items = [] as Txn[] } = $props();
+	let { items = [] as Txn[], stub = false } = $props();
 </script>
 
 <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg">
 	<div class="mb-4 flex items-center justify-between">
 		<div>
-			<p class="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Payments</p>
+			<p class="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
+				{stub ? 'Payments (stub)' : 'Payments'}
+			</p>
 			<h3 class="text-lg font-semibold text-slate-100">Transaction history</h3>
 		</div>
-		<span class="text-xs text-slate-400">Source: MIR ledger</span>
+		<span class="text-xs text-slate-400">{stub ? 'Static sample data' : 'Source: MIR ledger'}</span>
 	</div>
 	<div class="overflow-x-auto">
 		<table class="w-full text-left text-sm">

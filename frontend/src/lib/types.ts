@@ -11,23 +11,22 @@ export type TokenResponse = {
 	token_type: string;
 };
 
-export type RequirementStatus = 'pending' | 'active' | 'completed';
+export type RequirementStatus = 'pending' | 'completed';
 
 export type Requirement = {
 	id: string;
-	stage_id: string;
 	name: string;
 	description?: string;
 	status: RequirementStatus;
+	proof_url?: string | null;
+	proof_submitted_by?: string | null;
 };
 
 export type StageStatus = 'pending' | 'active' | 'completed';
 
 export type Stage = {
 	id: string;
-	grant_program_id: string;
 	order: number;
-	name?: string;
 	amount: number;
 	completion_status: StageStatus;
 	requirements: Requirement[];
@@ -40,6 +39,8 @@ export type GrantParticipant = {
 	user_id: string;
 	grant_program_id: string;
 	role: GrantParticipantRole;
+	email?: string | null;
+	name?: string | null;
 	active: boolean;
 };
 

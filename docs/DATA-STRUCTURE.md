@@ -2,10 +2,10 @@
 
 ## Core Entities
 - **User** (auth): `id (UUID)`, `name`, `email (unique)`, `hashed_password`, `bank_id`.
-- **GrantProgram** (grants): `id (UUID)`, `name`, `grant_receiver` (identifier used by payments/contracts), `stages[]`.
-- **Stage** (grants): `id (UUID)`, `grant_program_id`, `order` (sequential), `amount` (Decimal), `completion_status` (`pending|completed`), `requirements[]`.
-- **Requirement** (grants): `id (UUID)`, `stage_id`, `name`, `description`, `status` (`pending|completed`).
-- **UserToGrant** (grants): `id (UUID)`, `user_id`, `grant_program_id`, `role` (`Grantor|Supervisor|Grantee`), `active`.
+- **GrantProgram** (grants): `id (UUID)`, `name`, `bank_account_number` (identifier used by payments/contracts), `stages[]`.
+- **Stage** (grants): `id (UUID)`, `grant_program_id`, `order` (sequential), `amount` (Decimal), `completion_status` (`pending|active|completed`), `requirements[]`.
+- **Requirement** (grants): `id (UUID)`, `stage_id`, `name`, `description`, `status` (`pending|completed`), `proof_url` (submitted evidence), `proof_submitted_by (UUID)`.
+- **UserToGrant** (grants): `id (UUID)`, `user_id`, `grant_program_id`, `role` (`Grantor|Supervisor|Grantee`), `active`; API exposes linked user `email` and `name` for display.
 
 ## Relationships
 - `GrantProgram 1<-*> Stage`: ordered stages per program.
