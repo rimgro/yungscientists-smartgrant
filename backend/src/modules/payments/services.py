@@ -1,0 +1,26 @@
+from src.modules.grants.models import Stage
+from .gateway import SimplePaymentGateway
+from .schemas import PaymentCreate, PaymentStatus
+
+
+class PaymentService:
+    def __init__(self) -> None:
+        self.gateway = SimplePaymentGateway()
+
+    async def send_payment(self, payload: PaymentCreate) -> PaymentStatus:
+        response = await self.gateway.send_payment(
+            participant_id=payload.participant_id, amount=payload.amount, reference=payload.reference
+        )
+        return PaymentStatus(transaction_id=response.get("transaction_id", ""), status=response.get("status", "unknown"))
+
+    async def poll_status(self, transaction_id: str) -> PaymentStatus:
+        response = await self.gateway.poll_transaction(transaction_id)
+        return PaymentStatus(transaction_id=transaction_id, status=response.get("status", "unknown"))
+
+    async def send_stage_payout(self, stage: Stage) -> None:
+        # Bridge point: integrate business rules on how the receiver is resolved.
+        await self.gateway.send_payment(
+            participant_id=str(stage.grant_program.grant_receiver),
+            amount=float(stage.amount),
+            reference=f"GrantStage:{stage.id}",
+        )
