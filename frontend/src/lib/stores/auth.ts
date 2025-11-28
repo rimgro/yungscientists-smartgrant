@@ -1,20 +1,25 @@
 import { browser } from '$app/environment';
+import type { User } from '$lib/types';
 import { derived, get, writable } from 'svelte/store';
 
 const STORAGE_KEY = 'smartgrant.session';
 
-export type UserRole = 'grantee' | 'grantor' | 'supervisor';
-
-export type UserProfile = {
-	id: string;
-	name: string;
-	email?: string;
-	role: UserRole;
-};
-
 export type Session = {
 	token: string;
-	user: UserProfile;
+	user: User;
+};
+
+const isValidSession = (value: unknown): value is Session => {
+	if (!value || typeof value !== 'object') return false;
+	const session = value as Record<string, unknown>;
+	const user = session.user as Record<string, unknown> | undefined;
+	return (
+		typeof session.token === 'string' &&
+		!!user &&
+		typeof user.id === 'string' &&
+		typeof user.email === 'string' &&
+		typeof user.name === 'string'
+	);
 };
 
 const restoreSession = (): Session | null => {
@@ -24,7 +29,11 @@ const restoreSession = (): Session | null => {
 	if (!stored) return null;
 
 	try {
-		return JSON.parse(stored) as Session;
+		const parsed = JSON.parse(stored);
+		if (isValidSession(parsed)) {
+			return parsed;
+		}
+		throw new Error('Session shape invalid');
 	} catch (error) {
 		console.error('Failed to parse session from storage', error);
 		localStorage.removeItem(STORAGE_KEY);

@@ -15,7 +15,7 @@ async def register_user(payload: UserCreate, session: AsyncSession = Depends(get
     return await service.register_user(payload)
 
 
-@router.post("/token", response_model=Token)
+@router.post("/login", response_model=Token)
 async def login(credentials: UserLogin, session: AsyncSession = Depends(get_session)) -> Token:
     service = AuthService(session)
     return await service.login(credentials)

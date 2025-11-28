@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -14,7 +15,7 @@ class UserCreate(UserBase):
 
 
 class UserRead(UserBase):
-    id: str
+    id: UUID
 
     class Config:
         from_attributes = True

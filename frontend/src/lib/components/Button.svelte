@@ -5,8 +5,11 @@
 	let {
 		variant = 'primary' as ButtonVariant,
 		size = 'md' as ButtonSize,
-		type = 'button',
-		disabled = false
+		type = 'button' as 'button' | 'submit' | 'reset',
+		disabled = false,
+		class: className = '',
+		children,
+		...restProps
 	} = $props();
 
 	const base =
@@ -24,9 +27,9 @@
 		sm: 'px-3 py-2 text-xs',
 		md: 'px-4 py-2.5 text-sm',
 		lg: 'px-5 py-3 text-base'
-	};
+};
 </script>
 
-<button class={`${base} ${variants[variant]} ${sizes[size]}`} {type} {disabled}>
-	<slot />
+<button class={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {type} {disabled} {...restProps}>
+	{@render children?.()}
 </button>

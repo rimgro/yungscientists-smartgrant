@@ -12,7 +12,7 @@
 
 	let { busy = false } = $props();
 	let form: Credentials = { email: '', password: '' };
-	let errors: Partial<Record<keyof Credentials, string>> = {};
+	let errors: Partial<Record<keyof Credentials, string>> = $state({});
 
 	const schema = z.object({
 		email: z.string().email('Use a valid email'),
@@ -23,7 +23,8 @@
 		errors = issues;
 	};
 
-	const handleSubmit = () => {
+	const handleSubmit = (event: SubmitEvent) => {
+		event.preventDefault();
 		const validation = schema.safeParse(form);
 		if (!validation.success) {
 			const fieldErrors = validation.error.flatten().fieldErrors;
@@ -39,7 +40,7 @@
 	};
 </script>
 
-<form class="space-y-5 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl">
+<form class="space-y-5 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl" onsubmit={handleSubmit}>
 	<header class="space-y-2">
 		<p class="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Welcome back</p>
 		<h1 class="text-2xl font-semibold text-slate-100">Sign in to SmartGrant</h1>
@@ -70,8 +71,6 @@
 
 	<div class="flex items-center justify-between gap-3">
 		<div class="text-xs text-slate-400">Mir account holders use the same credentials</div>
-		<Button type="submit" disabled={busy} on:click|preventDefault={handleSubmit}>
-			{busy ? 'Signing in…' : 'Sign in'}
-		</Button>
+		<Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
 	</div>
 </form>

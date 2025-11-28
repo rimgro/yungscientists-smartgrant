@@ -1,26 +1,30 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-	import { Button, Card, InputField, SectionHeader } from '$lib/components';
+import { createEventDispatcher } from 'svelte';
+import { Button, Card, InputField, SectionHeader } from '$lib/components';
 
-	type Stage = {
+	export type StageDraft = {
 		name: string;
-		budget: number;
+		amount: number;
 		due: string;
 		requirement: string;
+		description?: string;
 	};
 
-	const dispatch = createEventDispatcher<{ submit: Stage[] }>();
+	const dispatch = createEventDispatcher<{ submit: StageDraft[] }>();
 
-	let { stages = initialStages(), activeStep = 0 } = $props();
-	let error = '';
+	let { stages: initialStagesProp = initialStages(), activeStep: initialActiveStep = 0 } = $props();
+	let stages = $state(initialStagesProp);
+	let activeStep = $state(initialActiveStep);
+	let error = $state('');
 
-	function initialStages(): Stage[] {
+	function initialStages(): StageDraft[] {
 		return [
 			{
 				name: 'Milestone 1',
-				budget: 5000,
+				amount: 5000,
 				due: new Date().toISOString().slice(0, 10),
-				requirement: 'Upload proposal and budget'
+				requirement: 'Upload proposal and budget',
+				description: ''
 			}
 		];
 	}
@@ -30,20 +34,21 @@
 			...stages,
 			{
 				name: `Milestone ${stages.length + 1}`,
-				budget: 1000,
+				amount: 1000,
 				due: new Date().toISOString().slice(0, 10),
-				requirement: 'Describe deliverable'
+				requirement: 'Describe deliverable',
+				description: ''
 			}
 		];
 		activeStep = stages.length - 1;
 	};
 
-	const updateStage = (index: number, changes: Partial<Stage>) => {
-		stages = stages.map((stage, i) => (i === index ? { ...stage, ...changes } : stage));
+	const updateStage = (index: number, changes: Partial<StageDraft>) => {
+		stages = stages.map((stage: StageDraft, i: number) => (i === index ? { ...stage, ...changes } : stage));
 	};
 
 	const handleSubmit = () => {
-		const hasEmpty = stages.some((stage) => !stage.name || !stage.requirement);
+		const hasEmpty = stages.some((stage: StageDraft) => !stage.name || !stage.requirement);
 		if (hasEmpty) {
 			error = 'Please name each milestone and describe its requirement.';
 			return;
@@ -67,13 +72,13 @@
 					<button
 						type="button"
 						class={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition ${index === activeStep ? 'border-brand bg-brand/10 text-brand' : 'border-white/10 bg-white/5 text-slate-300 hover:border-brand/40 hover:text-slate-100'}`}
-						on:click={() => (activeStep = index)}
+						onclick={() => (activeStep = index)}
 					>
 						<span class="font-semibold">{stage.name}</span>
-						<span class="text-xs text-slate-400">${stage.budget.toLocaleString()}</span>
+						<span class="text-xs text-slate-400">${stage.amount.toLocaleString()}</span>
 					</button>
 				{/each}
-				<Button variant="ghost" size="sm" on:click={addStage}>Add stage</Button>
+				<Button variant="ghost" size="sm" onclick={addStage}>Add stage</Button>
 			</div>
 		</div>
 
@@ -85,7 +90,8 @@
 						label="Stage name"
 						placeholder="Prototype delivery"
 						bind:value={stages[activeStep].name}
-						on:change={(event) => updateStage(activeStep, { name: event.target.value })}
+						on:change={(event: Event) =>
+							updateStage(activeStep, { name: (event.target as HTMLInputElement).value })}
 						required
 					/>
 					<InputField
@@ -93,9 +99,9 @@
 						label="Budget (USD)"
 						type="number"
 						placeholder="5000"
-						bind:value={stages[activeStep].budget}
-						on:change={(event) =>
-							updateStage(activeStep, { budget: Number((event.target as HTMLInputElement).value) })}
+						bind:value={stages[activeStep].amount}
+						on:change={(event: Event) =>
+							updateStage(activeStep, { amount: Number((event.target as HTMLInputElement).value) })}
 						required
 					/>
 					<InputField
@@ -104,7 +110,8 @@
 						type="text"
 						placeholder="2025-01-15"
 						bind:value={stages[activeStep].due}
-						on:change={(event) => updateStage(activeStep, { due: event.target.value })}
+						on:change={(event: Event) =>
+							updateStage(activeStep, { due: (event.target as HTMLInputElement).value })}
 						required
 					/>
 					<label class="space-y-2 text-sm text-slate-200" for="stage-requirement">
@@ -116,9 +123,18 @@
 							class="min-h-[120px] w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand"
 							placeholder="Upload a 5 minute demo recording and short summary."
 							bind:value={stages[activeStep].requirement}
-							on:input={(event) => updateStage(activeStep, { requirement: event.target.value })}
-						/>
+							oninput={(event) =>
+								updateStage(activeStep, { requirement: (event.target as HTMLTextAreaElement).value })}
+						></textarea>
 					</label>
+					<InputField
+						id="stage-requirement-description"
+						label="Requirement details (optional)"
+						placeholder="Links, acceptance criteria"
+						bind:value={stages[activeStep].description}
+						on:change={(event: Event) =>
+							updateStage(activeStep, { description: (event.target as HTMLInputElement).value })}
+					/>
 				</div>
 			{/if}
 
@@ -126,7 +142,7 @@
 				{#if error}
 					<p class="text-sm font-medium text-rose-300">{error}</p>
 				{/if}
-				<Button on:click={handleSubmit}>Save wizard</Button>
+				<Button onclick={handleSubmit}>Save wizard</Button>
 			</div>
 		</div>
 	</div>

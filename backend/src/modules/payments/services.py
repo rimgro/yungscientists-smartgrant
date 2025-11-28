@@ -18,9 +18,8 @@ class PaymentService:
         return PaymentStatus(transaction_id=transaction_id, status=response.get("status", "unknown"))
 
     async def send_stage_payout(self, stage: Stage) -> None:
-        # Bridge point: integrate business rules on how the receiver is resolved.
         await self.gateway.send_payment(
-            participant_id=str(stage.grant_program.grant_receiver),
+            participant_id=str(stage.grant_program.bank_account_number),
             amount=float(stage.amount),
             reference=f"GrantStage:{stage.id}",
         )

@@ -1,22 +1,47 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.auth.models import User
+from src.modules.auth.repositories import UserRepository
 from src.modules.payments.services import PaymentService
-from .models import GrantProgram, Requirement, Stage
+from .models import GrantProgram, Requirement, Stage, UserToGrant
 from .repositories import GrantRepository
-from .schemas import GrantProgramCreate, GrantProgramRead, StageRead
+from .schemas import (
+    GrantParticipantCreate,
+    GrantParticipantRead,
+    GrantProgramCreate,
+    GrantProgramRead,
+    RequirementRead,
+    StageRead,
+)
 
 
 class GrantService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, payment_service: PaymentService | None = None):
         self.session = session
         self.repo = GrantRepository(session)
-        self.payment_service = PaymentService()
+        self.payment_service = payment_service or PaymentService()
+        self.user_repo = UserRepository(session)
 
-    async def create_program(self, payload: GrantProgramCreate) -> GrantProgramRead:
+    async def create_program(self, payload: GrantProgramCreate, current_user: User) -> GrantProgramRead:
         self._validate_stage_order(payload)
 
-        program = GrantProgram(name=payload.name, grant_receiver=payload.grant_receiver)
+        program = GrantProgram(
+            name=payload.name,
+            bank_account_number=payload.bank_account_number,
+            grantor_id=current_user.id,
+        )
+        program.participants.append(UserToGrant(user_id=current_user.id, role="grantor"))
+
+        unique_participants = {p.user_id: p for p in payload.participants}
+        for participant in unique_participants.values():
+            if participant.user_id == str(current_user.id):
+                continue
+            participant_uuid = await self._ensure_user_exists(participant.user_id)
+            program.participants.append(UserToGrant(user_id=participant_uuid, role=participant.role))
+
         for stage_payload in sorted(payload.stages, key=lambda s: s.order):
             stage = Stage(order=stage_payload.order, amount=stage_payload.amount)
             for req_payload in stage_payload.requirements:
@@ -26,17 +51,88 @@ class GrantService:
 
         await self.repo.create(program)
         await self.session.commit()
-        await self.session.refresh(program)
-        return GrantProgramRead.model_validate(program)
+        reloaded = await self.repo.get(program.id)
+        return GrantProgramRead.model_validate(reloaded, from_attributes=True)
 
     async def list_programs(self) -> list[GrantProgramRead]:
         programs = await self.repo.list()
         return [GrantProgramRead.model_validate(p) for p in programs]
 
-    async def complete_stage(self, stage_id: str) -> StageRead:
-        stage = await self.repo.get_stage(stage_id)
+    async def confirm_program(self, grant_program_id: str, current_user: User) -> GrantProgramRead:
+        program_id = self._parse_uuid(grant_program_id)
+        program = await self.repo.get(program_id)
+        if not program:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
+
+        self._ensure_role(program, current_user, allowed_roles=["grantor"])
+        if program.status != "draft":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grant already confirmed")
+        if not program.stages:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stages must be configured")
+
+        program.status = "active"
+        for index, stage in enumerate(sorted(program.stages, key=lambda s: s.order)):
+            stage.completion_status = "active" if index == 0 else "pending"
+
+        await self.session.commit()
+        reloaded = await self.repo.get(program.id)
+        return GrantProgramRead.model_validate(reloaded, from_attributes=True)
+
+    async def invite_participant(
+        self, grant_program_id: str, payload: GrantParticipantCreate, current_user: User
+    ) -> list[GrantParticipantRead]:
+        program_id = self._parse_uuid(grant_program_id)
+        program = await self.repo.get(program_id)
+        if not program:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
+
+        self._ensure_role(program, current_user, allowed_roles=["grantor"])
+        if payload.user_id == str(current_user.id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grantor already assigned")
+
+        participant_uuid = await self._ensure_user_exists(payload.user_id)
+        existing = next((p for p in program.participants if p.user_id == participant_uuid), None)
+        if existing:
+            if not existing.active:
+                existing.active = True
+                existing.role = payload.role
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already invited to grant")
+        else:
+            program.participants.append(UserToGrant(user_id=participant_uuid, role=payload.role))
+
+        await self.session.commit()
+        reloaded = await self.repo.get(program.id)
+        return [GrantParticipantRead.model_validate(p, from_attributes=True) for p in reloaded.participants]
+
+    async def complete_requirement(self, requirement_id: str, current_user: User) -> RequirementRead:
+        requirement_uuid = self._parse_uuid(requirement_id)
+        requirement = await self.repo.get_requirement(requirement_uuid)
+        if not requirement:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requirement not found")
+
+        program = requirement.stage.grant_program
+        self._ensure_role(program, current_user, allowed_roles=["grantor", "supervisor"])
+        if requirement.stage.completion_status != "active":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage is not active")
+        requirement.status = "completed"
+
+        await self.session.commit()
+        await self.session.refresh(requirement)
+        return RequirementRead.model_validate(requirement, from_attributes=True)
+
+    async def complete_stage(self, stage_id: str, current_user: User) -> StageRead:
+        stage_uuid = self._parse_uuid(stage_id)
+        stage = await self.repo.get_stage(stage_uuid)
         if not stage:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stage not found")
+
+        program = stage.grant_program
+        self._ensure_role(program, current_user, allowed_roles=["grantor", "supervisor"])
+        if program.status != "active":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grant is not active")
+        if stage.completion_status != "active":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage is not active")
 
         pending_reqs = [req for req in stage.requirements if req.status != "completed"]
         if pending_reqs:
@@ -45,11 +141,47 @@ class GrantService:
             )
 
         stage.completion_status = "completed"
+        next_stage = self._get_next_stage(program, stage.order)
+        if next_stage:
+            next_stage.completion_status = "active"
+        else:
+            program.status = "completed"
+
         await self.session.commit()
         await self.session.refresh(stage)
 
         await self.payment_service.send_stage_payout(stage)
-        return StageRead.model_validate(stage)
+        return StageRead.model_validate(stage, from_attributes=True)
+
+    async def _ensure_user_exists(self, user_id: str) -> UUID:
+        parsed_id = self._parse_uuid(user_id)
+        exists = await self.user_repo.get_by_id(parsed_id)
+        if not exists:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return parsed_id
+
+    @staticmethod
+    def _parse_uuid(user_id: str) -> UUID:
+        try:
+            return UUID(str(user_id))
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user id")
+
+    def _ensure_role(self, program: GrantProgram, user: User, allowed_roles: list[str]) -> None:
+        if program.grantor_id == user.id and "grantor" in allowed_roles:
+            return
+        participant_roles = [p.role for p in program.participants if str(p.user_id) == str(user.id) and p.active]
+        if any(role in allowed_roles for role in participant_roles):
+            return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    @staticmethod
+    def _get_next_stage(program: GrantProgram, current_order: int) -> Stage | None:
+        ordered = sorted(program.stages, key=lambda s: s.order)
+        for stage in ordered:
+            if stage.order > current_order:
+                return stage
+        return None
 
     @staticmethod
     def _validate_stage_order(payload: GrantProgramCreate) -> None:

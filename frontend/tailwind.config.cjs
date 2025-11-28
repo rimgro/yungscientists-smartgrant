@@ -1,9 +1,9 @@
-import defaultTheme from 'tailwindcss/defaultTheme';
-import forms from '@tailwindcss/forms';
-import typography from '@tailwindcss/typography';
+const defaultTheme = require('tailwindcss/defaultTheme');
+const forms = require('@tailwindcss/forms');
+const typography = require('@tailwindcss/typography');
 
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
 	content: ['./src/**/*.{html,js,svelte,ts}'],
 	theme: {
 		extend: {
@@ -15,7 +15,8 @@ export default {
 				brand: {
 					DEFAULT: '#0ea5e9',
 					deep: '#075985',
-					muted: '#e0f2fe'
+					muted: '#e0f2fe',
+					strong: '#075985'
 				},
 				ink: '#0b1221',
 				surface: '#0f172a'

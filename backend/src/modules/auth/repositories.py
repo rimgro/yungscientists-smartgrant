@@ -19,6 +19,10 @@ class UserRepository:
         await self.session.flush()
         return user
 
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        result = await self.session.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
     async def list(self) -> list[User]:
         result = await self.session.execute(select(User))
         return list(result.scalars().all())

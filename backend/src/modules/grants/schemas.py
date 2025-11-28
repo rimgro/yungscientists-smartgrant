@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -9,7 +10,7 @@ class RequirementCreate(BaseModel):
 
 
 class RequirementRead(RequirementCreate):
-    id: str
+    id: UUID
     status: str
 
     class Config:
@@ -19,15 +20,15 @@ class RequirementRead(RequirementCreate):
 class StageCreate(BaseModel):
     order: int
     amount: float
-    requirements: List[RequirementCreate] = []
+    requirements: List[RequirementCreate] = Field(default_factory=list)
 
 
 class StageRead(BaseModel):
-    id: str
+    id: UUID
     order: int
     amount: float
     completion_status: str
-    requirements: List[RequirementRead] = []
+    requirements: List[RequirementRead] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -35,15 +36,38 @@ class StageRead(BaseModel):
 
 class GrantProgramCreate(BaseModel):
     name: str = Field(..., max_length=255)
-    grant_receiver: str = Field(..., max_length=255)
+    bank_account_number: str = Field(..., max_length=64)
     stages: List[StageCreate]
+    participants: List["GrantParticipantCreate"] = Field(default_factory=list)
 
 
 class GrantProgramRead(BaseModel):
-    id: str
+    id: UUID
     name: str
-    grant_receiver: str
-    stages: List[StageRead] = []
+    bank_account_number: str
+    status: str
+    participants: List["GrantParticipantRead"] = Field(default_factory=list)
+    stages: List[StageRead] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
+
+
+class GrantParticipantCreate(BaseModel):
+    user_id: str
+    role: Literal["grantee", "supervisor"]
+
+
+class GrantParticipantRead(BaseModel):
+    id: UUID
+    user_id: UUID
+    grant_program_id: UUID
+    role: str
+    active: bool
+
+    class Config:
+        from_attributes = True
+
+
+GrantProgramCreate.model_rebuild()
+GrantProgramRead.model_rebuild()

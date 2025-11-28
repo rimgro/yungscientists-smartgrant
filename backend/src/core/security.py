@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -12,8 +13,8 @@ from .config import settings
 from .database import get_session
 from src.modules.auth.models import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
@@ -45,10 +46,11 @@ async def get_current_user(
         user_id: str | None = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
+        user_uuid = UUID(user_id)
+    except (JWTError, ValueError):
         raise credentials_exception
 
-    result = await session.execute(select(User).where(User.id == user_id))
+    result = await session.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception

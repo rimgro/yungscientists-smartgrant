@@ -1,16 +1,14 @@
 <script lang="ts">
 	type InputType = 'text' | 'email' | 'password' | 'number' | 'tel';
 
-	let {
-		id,
-		label,
-		type = 'text' as InputType,
-		placeholder = '',
-		value = '',
-		required = false,
-		error = '',
-		helper = ''
-	} = $props();
+	export let id: string;
+	export let label: string;
+	export let type: InputType = 'text';
+	export let placeholder = '';
+	export let value = '';
+	export let required = false;
+	export let error = '';
+	export let helper = '';
 </script>
 
 <label class="space-y-2 text-sm text-slate-200" for={id}>

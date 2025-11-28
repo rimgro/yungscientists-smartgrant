@@ -2,7 +2,8 @@ import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { clearSession, getSession } from '$lib/stores/auth';
 
-const API_BASE_URL = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE_URL = (import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
+const API_PREFIX = '/api/v1';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -22,7 +23,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		headers.set('Authorization', `Bearer ${session.token}`);
 	}
 
-	const response = await fetch(`${API_BASE_URL}${path}`, {
+	const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+	const response = await fetch(`${API_BASE_URL}${API_PREFIX}${normalizedPath}`, {
 		method: options.method ?? 'GET',
 		...options,
 		headers
