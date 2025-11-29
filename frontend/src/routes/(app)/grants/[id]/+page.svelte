@@ -203,7 +203,7 @@ const inviteParticipant = async () => {
 		if (!inviteUserId.trim()) {
 			pushToast({
 				title: 'Missing user',
-				message: 'Введите email или user_id участника',
+				message: 'Enter an email or user_id for the participant',
 				tone: 'error',
 				timeout: 2500
 			});
@@ -215,13 +215,13 @@ const inviteParticipant = async () => {
 				? { user_email: inviteUserId, role: inviteRole }
 				: { user_id: inviteUserId, role: inviteRole };
 			await api.post(`/grants/${grant.id}/invite`, body);
-			pushToast({ title: 'Приглашение отправлено', tone: 'success', timeout: 2000 });
+			pushToast({ title: 'Invitation sent', tone: 'success', timeout: 2000 });
 			inviteUserId = '';
 			inviteRole = 'grantee';
 			await loadGrant();
 		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Не удалось пригласить';
-			pushToast({ title: 'Ошибка приглашения', message, tone: 'error', timeout: 3500 });
+			const message = err instanceof Error ? err.message : 'Unable to invite';
+			pushToast({ title: 'Invite error', message, tone: 'error', timeout: 3500 });
 	} finally {
 		inviteBusy = false;
 	}
@@ -507,7 +507,7 @@ const inviteParticipant = async () => {
 								<span class="font-semibold">User (email or ID)</span>
 								<input
 									class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand"
-									placeholder="email@domain или UUID"
+									placeholder="email@domain or UUID"
 									bind:value={inviteUserId}
 								/>
 							</label>
@@ -522,7 +522,7 @@ const inviteParticipant = async () => {
 								</select>
 							</label>
 							<Button class="w-full" disabled={inviteBusy} onclick={inviteParticipant}>
-								{inviteBusy ? 'Отправка…' : 'Пригласить'}
+								{inviteBusy ? 'Sending…' : 'Invite'}
 							</Button>
 						</div>
 					{/if}
