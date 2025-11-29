@@ -34,15 +34,16 @@ services:
     env_file:
       - backend/.env
     environment:
-      MIR_API_BASE_URL: http://fake-bank:8000
-      MIR_API_KEY: dev-fake-bank
+      MIR_API_BASE_URL: http://fake_bank:8000
+      MIR_API_KEY: dev-fake_bank
+      APP_BANK_ACCOUNT_NUMBER: ${APP_BANK_ACCOUNT_NUMBER:-0000000000}
       PYTHONPATH: /app
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-      fake-bank:
+      fake_bank:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
@@ -67,16 +68,16 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
-  fake-bank:
+  fake_bank:
     build:
-      context: ./fake-bank
-    container_name: smartgrant-fake-bank
+      context: ./fake_bank
+    container_name: smartgrant-fake_bank
     environment:
       - DATABASE_URL=sqlite:///./data/bank_service.db
     ports:
       - "8010:8000"
     volumes:
-      - ./fake-bank/data:/app/data
+      - ./fake_bank/data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 10s

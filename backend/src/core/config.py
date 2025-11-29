@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     mir_api_key: str = Field(..., alias="MIR_API_KEY")
     mir_api_base_url: str = Field("https://api.mir-payments.example", alias="MIR_API_BASE_URL")
+    payment_bank_api_base_url: str | None = Field(None, alias="PAYMENT_BANK_API_BASE_URL")
+    app_bank_account_number: str = Field(..., alias="APP_BANK_ACCOUNT_NUMBER")
 
 
 settings = Settings()

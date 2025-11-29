@@ -52,3 +52,28 @@ export type GrantProgram = {
 	participants: GrantParticipant[];
 	stages: Stage[];
 };
+
+export type PaymentContract = {
+	contract_id: string;
+	name: string;
+	contract_type: string;
+	description?: string | null;
+	status: string;
+	parameters: Record<string, unknown>;
+	created_at: string;
+};
+
+export type PaymentRuleCheck = {
+	allowed: boolean;
+	reason?: string | null;
+	rules_checked: string[];
+	details?: Record<string, unknown> | null;
+};
+
+export type PaymentTransaction = {
+	transaction_id: string;
+	status: string;
+	amount: number;
+	type: string;
+	timestamp: string;
+};

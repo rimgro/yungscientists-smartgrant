@@ -10,6 +10,7 @@ from .schemas import (
     GrantParticipantRoleUpdate,
     GrantProgramCreate,
     GrantProgramRead,
+    GrantBankAccountUpdate,
     RequirementProofSubmit,
     RequirementRead,
     StageRead,
@@ -17,6 +18,10 @@ from .schemas import (
 from .services import GrantService
 
 router = APIRouter(prefix="/grants", tags=["grants"])
+
+
+def get_grant_service(session: AsyncSession = Depends(get_session)) -> GrantService:
+    return GrantService(session)
 
 
 @router.post("/", response_model=GrantProgramRead, status_code=status.HTTP_201_CREATED)
@@ -110,3 +115,14 @@ async def complete_stage(
 ) -> StageRead:
     service = GrantService(session)
     return await service.complete_stage(stage_id, current_user)
+
+
+@router.patch("/{grant_program_id}/bank-account", response_model=GrantProgramRead)
+async def update_bank_account(
+    grant_program_id: str,
+    payload: GrantBankAccountUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GrantProgramRead:
+    service = GrantService(session)
+    return await service.update_bank_account(grant_program_id, payload, current_user)

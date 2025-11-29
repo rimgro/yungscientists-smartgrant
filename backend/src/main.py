@@ -8,6 +8,7 @@ from src.modules.auth import router as auth_router
 from src.modules.grants import router as grants_router
 from src.modules.payments import router as payments_router
 from src.modules.contracts import router as contracts_router
+from src.modules.payment_middleware import router as payment_middleware_router
 
 
 @asynccontextmanager
@@ -37,6 +38,7 @@ app.include_router(auth_router.router, prefix=API_PREFIX)
 app.include_router(grants_router.router, prefix=API_PREFIX)
 app.include_router(payments_router.router, prefix=API_PREFIX)
 app.include_router(contracts_router.router, prefix=API_PREFIX)
+app.include_router(payment_middleware_router.router, prefix=API_PREFIX)
 
 
 @app.get(f"{API_PREFIX}/health")

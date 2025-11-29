@@ -22,5 +22,21 @@ Base URL: `/api/v1`
 ## Contracts
 - `POST /contracts/{grant_program_id}/execute` — Placeholder to trigger contract interaction; currently returns stub.
 
+## Payment middleware
+- `GET /payment-middleware/health` — Health of the payment middleware adapter and downstream bank API.
+- `POST /payment-middleware/contracts` — Create a smart-contract rule (MCC, merchant, amount, time, card restrictions).
+- `GET /payment-middleware/contracts` — List contracts.
+- `POST /payment-middleware/contracts/execute` — Dry-run a contract with `purchase_info`.
+- `DELETE /payment-middleware/contracts/{contract_id}` — Delete a contract.
+- `GET /payment-middleware/cards/{card_number}/contracts` — Contracts applicable to a card.
+- `POST /payment-middleware/check-purchase` — Basic validation without contracts.
+- `POST /payment-middleware/process-purchase` — Process purchase with base checks.
+- `POST /payment-middleware/process-purchase-with-contract?contract_id=...` — Process purchase through a contract.
+- `POST /payment-middleware/deposit` — Deposit to a card.
+- `POST /payment-middleware/transfer` — Transfer between cards.
+- `GET /payment-middleware/balance/{card_number}` — Balance lookup.
+- `GET /payment-middleware/transactions/{card_number}` — Transaction history.
+- `GET /payment-middleware/rules/mcc` — Static MCC limits map (stubbed).
+
 ## Health
 - `GET /health` — Service liveness probe. (Base URL applies, so `/api/v1/health`.)

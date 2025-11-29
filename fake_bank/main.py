@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 import uuid
 import datetime
 from typing import List
+import json
 
 from database import get_db, AccountDB, TransactionDB
 from models import (
@@ -28,6 +29,18 @@ def get_account(db: Session, card_number: str) -> AccountDB:
             detail=f"Счет с номером карты {card_number} не найден"
         )
     return account
+
+def log_event(event: dict):
+    """
+    Append a structured log line for observability of the fake bank.
+    Emits to stdout instead of writing to disk to work in container logs.
+    """
+    event.setdefault("timestamp", datetime.datetime.utcnow().isoformat())
+    try:
+        print(json.dumps(event, ensure_ascii=False))
+    except Exception:
+        # Logging should never block banking operations
+        pass
 
 @app.post("/deposit", response_model=TransactionResponse)
 async def deposit_money(
@@ -63,6 +76,15 @@ async def deposit_money(
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+
+    log_event({
+        "type": "deposit",
+        "transaction_id": transaction.id,
+        "to_card": request.card_number,
+        "amount": request.amount,
+        "balance_after": account.balance,
+        "description": transaction.description
+    })
     
     return TransactionResponse(
         transaction_id=transaction.id,
@@ -126,6 +148,17 @@ async def transfer_money(
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+
+    log_event({
+        "type": "transfer",
+        "transaction_id": transaction.id,
+        "from_card": request.from_card,
+        "to_card": request.to_card,
+        "amount": request.amount,
+        "from_balance_after": from_account.balance,
+        "to_balance_after": to_account.balance,
+        "description": transaction.description
+    })
     
     return TransactionResponse(
         transaction_id=transaction.id,

@@ -43,6 +43,10 @@ class GrantProgramCreate(BaseModel):
     participants: List["GrantParticipantCreate"] = Field(default_factory=list)
 
 
+class GrantBankAccountUpdate(BaseModel):
+    bank_account_number: str = Field(..., max_length=64)
+
+
 class GrantProgramRead(BaseModel):
     id: UUID
     name: str

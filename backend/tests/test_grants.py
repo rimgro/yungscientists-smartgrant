@@ -117,7 +117,7 @@ async def test_grant_confirmation_triggers_deposit(monkeypatch, client: AsyncCli
     confirm_response = await client.post(f"/api/v1/grants/{create_response.json()['id']}/confirm")
     assert confirm_response.status_code == 200
     assert confirm_response.json()["status"] == "active"
-    assert deposit_calls["participant_id"] == "BANK-DEP"
+    assert deposit_calls["participant_id"] == "APP-ACCOUNT"
     assert deposit_calls["amount"] == 1250.0
 
 
@@ -163,6 +163,98 @@ async def test_grantor_can_demote_supervisor_to_grantee(client: AsyncClient, use
     assert demote_resp.status_code == 200
     roles = {p["id"]: p["role"] for p in demote_resp.json()}
     assert roles[participant_id] == "grantee"
+
+
+@pytest.mark.asyncio
+async def test_stage_payout_triggers_for_non_contract_stage(monkeypatch, client: AsyncClient, users, use_current_user):
+    use_current_user(users["grantor"])
+
+    payout_calls = []
+
+    async def fake_payout(self, stage):
+        payout_calls.append({"stage_id": str(stage.id), "amount": float(stage.amount)})
+        return None
+
+    monkeypatch.setattr(PaymentService, "send_stage_payout", fake_payout)
+
+    payload = {
+        "name": "Payout Program",
+        "bank_account_number": "BANK-PAY",
+        "stages": [
+            {"order": 1, "amount": 150, "requirements": []},
+        ],
+        "participants": [{"user_id": str(users["supervisor"].id), "role": "supervisor"}],
+    }
+
+    create_response = await client.post("/api/v1/grants/", json=payload)
+    assert create_response.status_code == 201
+    grant = create_response.json()
+    stage_id = grant["stages"][0]["id"]
+
+    await client.post(f"/api/v1/grants/{grant['id']}/confirm")
+
+    # Supervisor completes stage directly; payout should fire.
+    use_current_user(users["supervisor"])
+    complete_resp = await client.post(f"/api/v1/grants/stages/{stage_id}/complete")
+    assert complete_resp.status_code == 200
+    assert payout_calls and payout_calls[0]["stage_id"] == stage_id
+
+
+@pytest.mark.asyncio
+async def test_stage_payout_skipped_for_contract_stage(monkeypatch, client: AsyncClient, users, use_current_user):
+    use_current_user(users["grantor"])
+
+    payout_calls = []
+
+    async def fake_payout(self, stage):
+        payout_calls.append(str(stage.id))
+        return None
+
+    monkeypatch.setattr(PaymentService, "send_stage_payout", fake_payout)
+
+    payload = {
+        "name": "Contract Stage",
+        "bank_account_number": "BANK-PAY",
+        "stages": [
+            {
+                "order": 1,
+                "amount": 150,
+                "requirements": [{"name": "Smart", "description": "payment_contract_id:abc"}],
+            },
+        ],
+        "participants": [{"user_id": str(users["grantee"].id), "role": "grantee"}],
+    }
+
+    create_response = await client.post("/api/v1/grants/", json=payload)
+    assert create_response.status_code == 201
+    stage_id = create_response.json()["stages"][0]["id"]
+    await client.post(f"/api/v1/grants/{create_response.json()['id']}/confirm")
+
+    # Grantee can complete contract stage but payout should not trigger.
+    use_current_user(users["grantee"])
+    complete_resp = await client.post(f"/api/v1/grants/stages/{stage_id}/complete")
+    assert complete_resp.status_code == 200
+    assert payout_calls == []
+
+
+@pytest.mark.asyncio
+async def test_grantor_can_update_payout_account(client: AsyncClient, users, use_current_user):
+    use_current_user(users["grantor"])
+    payload = {
+        "name": "Update Bank",
+        "bank_account_number": "BANK-ORIG",
+        "stages": [{"order": 1, "amount": 100, "requirements": []}],
+        "participants": [],
+    }
+    create_response = await client.post("/api/v1/grants/", json=payload)
+    assert create_response.status_code == 201
+    grant_id = create_response.json()["id"]
+
+    update_resp = await client.patch(
+        f"/api/v1/grants/{grant_id}/bank-account", json={"bank_account_number": "BANK-NEW"}
+    )
+    assert update_resp.status_code == 200
+    assert update_resp.json()["bank_account_number"] == "BANK-NEW"
 @pytest.mark.asyncio
 async def test_stages_must_be_sequential(client: AsyncClient, users, use_current_user):
     use_current_user(users["grantor"])

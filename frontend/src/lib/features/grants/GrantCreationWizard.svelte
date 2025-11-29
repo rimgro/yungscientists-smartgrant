@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { Button, Card, InputField, SectionHeader } from '$lib/components';
-	import type { RequirementDraft, StageDraft } from './types';
+	import type { RequirementDraft, StageContractDraft, StageDraft } from './types';
 
 	const dispatch = createEventDispatcher<{ submit: StageDraft[] }>();
 
@@ -14,9 +14,23 @@
 		return [
 			{
 				amount: 5000,
-				requirements: [{ name: 'Upload proposal and budget', description: '' }]
+				requirements: [{ name: 'Upload proposal and budget', description: '' }],
+				contract: initialContract()
 			}
 		];
+	}
+
+	function initialContract(): StageContractDraft {
+		return {
+			enabled: false,
+			name: '',
+			applicable_cards: 'all',
+			allowed_mcc: '5411,5812',
+			blocked_mcc: '4121',
+			blocked_merchants: '',
+			max_amount: 1000,
+			description: ''
+		};
 	}
 
 	const addStage = () => {
@@ -24,7 +38,8 @@
 			...stages,
 			{
 				amount: 1000,
-				requirements: [{ name: 'Describe deliverable', description: '' }]
+				requirements: [{ name: 'Describe deliverable', description: '' }],
+				contract: initialContract()
 			}
 		];
 		activeStep = stages.length - 1;
@@ -75,6 +90,14 @@
 		error = '';
 		dispatch('submit', stages);
 	};
+
+	const updateContract = (stageIndex: number, changes: Partial<StageContractDraft>) => {
+		stages = stages.map((stage: StageDraft, i: number) => {
+			if (i !== stageIndex) return stage;
+			const nextContract = { ...(stage.contract ?? initialContract()), ...changes };
+			return { ...stage, contract: nextContract };
+		});
+	};
 </script>
 
 <Card title="Grant creation wizard" description="Define milestones, payouts, and required evidence.">
@@ -101,7 +124,7 @@
 			</div>
 		</div>
 
-		<div class="space-y-4 md:col-span-8">
+					<div class="space-y-4 md:col-span-8">
 			{#if stages[activeStep]}
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<InputField
@@ -117,38 +140,131 @@
 						required
 					/>
 					<div class="sm:col-span-2 space-y-3">
-						<div class="flex items-center justify-between">
-							<p class="text-sm font-semibold text-slate-100">Requirements</p>
-							<Button size="sm" variant="ghost" onclick={() => addRequirement(activeStep)}>Add requirement</Button>
-						</div>
-						{#each stages[activeStep].requirements as req, reqIndex}
-							<div class="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-								<div class="flex items-center justify-between">
-									<span class="text-xs uppercase text-slate-400">Requirement {reqIndex + 1}</span>
-									{#if stages[activeStep].requirements.length > 1}
-										<button class="text-xs text-rose-300 hover:text-rose-200" type="button" onclick={() => removeRequirement(activeStep, reqIndex)}>
-											Remove
-										</button>
-									{/if}
-								</div>
-								<textarea
-									class="min-h-[80px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand"
-									placeholder="What must be done before payout?"
-									bind:value={req.name}
-									oninput={(event) =>
-										updateRequirement(activeStep, reqIndex, { name: (event.target as HTMLTextAreaElement).value })}
-								></textarea>
-								<textarea
-									class="min-h-[60px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand"
-									placeholder="Links, acceptance criteria (optional)"
-									bind:value={req.description}
-									oninput={(event) =>
-										updateRequirement(activeStep, reqIndex, {
-											description: (event.target as HTMLTextAreaElement).value
-										})}
-								></textarea>
+						{#if stages[activeStep].contract?.enabled}
+							<div class="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+								<p class="font-semibold">Smart contract enabled</p>
+								<p class="text-emerald-50">This stage uses only the smart contract for approval. No manual requirements.</p>
 							</div>
-						{/each}
+						{:else}
+							<div class="flex items-center justify-between">
+								<p class="text-sm font-semibold text-slate-100">Requirements</p>
+								<Button size="sm" variant="ghost" onclick={() => addRequirement(activeStep)}>Add requirement</Button>
+							</div>
+							{#each stages[activeStep].requirements as req, reqIndex}
+								<div class="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+									<div class="flex items-center justify-between">
+										<span class="text-xs uppercase text-slate-400">Requirement {reqIndex + 1}</span>
+										{#if stages[activeStep].requirements.length > 1}
+											<button class="text-xs text-rose-300 hover:text-rose-200" type="button" onclick={() => removeRequirement(activeStep, reqIndex)}>
+												Remove
+											</button>
+										{/if}
+									</div>
+									<textarea
+										class="min-h-[80px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand"
+										placeholder="What must be done before payout?"
+										bind:value={req.name}
+										oninput={(event) =>
+											updateRequirement(activeStep, reqIndex, { name: (event.target as HTMLTextAreaElement).value })}
+									></textarea>
+									<textarea
+										class="min-h-[60px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand"
+										placeholder="Links, acceptance criteria (optional)"
+										bind:value={req.description}
+										oninput={(event) =>
+											updateRequirement(activeStep, reqIndex, {
+												description: (event.target as HTMLTextAreaElement).value
+											})}
+									></textarea>
+								</div>
+							{/each}
+						{/if}
+					</div>
+
+					<div class="sm:col-span-2 space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm font-semibold text-slate-100">Payment middleware contract</p>
+								<p class="text-xs text-slate-400">
+									Optional rule set that will be created alongside the grant.
+								</p>
+							</div>
+							<label class="flex items-center gap-2 text-xs text-slate-300">
+								<input
+									type="checkbox"
+									checked={stages[activeStep].contract?.enabled}
+									onchange={(e) => updateContract(activeStep, { enabled: e.currentTarget.checked })}
+								/>
+								<span>Enable</span>
+							</label>
+						</div>
+
+						{#if stages[activeStep].contract?.enabled}
+							<div class="grid gap-3 md:grid-cols-2">
+								<InputField
+									id="contract-name"
+									label="Contract name"
+									placeholder="Stage rule set"
+									bind:value={stages[activeStep].contract.name}
+									on:input={(e: Event) =>
+										updateContract(activeStep, { name: (e.target as HTMLInputElement).value })}
+								/>
+								<InputField
+									id="max-amount"
+									label="Max amount (leave blank to skip)"
+									type="number"
+									min="0"
+									step="1"
+									bind:value={stages[activeStep].contract.max_amount}
+									on:input={(e: Event) =>
+										updateContract(activeStep, { max_amount: Number((e.target as HTMLInputElement).value) })}
+								/>
+							</div>
+							<div class="grid gap-3 md:grid-cols-2">
+								<InputField
+									id="applicable-cards"
+									label="Applicable cards (comma separated or 'all')"
+									placeholder="1234...,all"
+									bind:value={stages[activeStep].contract.applicable_cards}
+									on:input={(e: Event) =>
+										updateContract(activeStep, { applicable_cards: (e.target as HTMLInputElement).value })}
+								/>
+								<InputField
+									id="description"
+									label="Description (optional)"
+									placeholder="What does this contract protect?"
+									bind:value={stages[activeStep].contract.description}
+										on:input={(e: Event) =>
+											updateContract(activeStep, { description: (e.target as HTMLInputElement).value })}
+								/>
+							</div>
+							<div class="grid gap-3 md:grid-cols-2">
+								<InputField
+									id="allowed-mcc"
+									label="Allowed MCC (comma separated; leave blank for any)"
+									placeholder="5411,5812"
+									bind:value={stages[activeStep].contract.allowed_mcc}
+									on:input={(e: Event) =>
+										updateContract(activeStep, { allowed_mcc: (e.target as HTMLInputElement).value })}
+								/>
+								<InputField
+									id="blocked-mcc"
+									label="Blocked MCC (comma separated)"
+									placeholder="4121"
+									bind:value={stages[activeStep].contract.blocked_mcc}
+									on:input={(e: Event) =>
+										updateContract(activeStep, { blocked_mcc: (e.target as HTMLInputElement).value })}
+								/>
+							</div>
+							<InputField
+								id="blocked-merchants"
+								label="Blocked merchants (comma separated)"
+								placeholder="fraud_01, risky_shop"
+								bind:value={stages[activeStep].contract.blocked_merchants}
+								on:input={(e: Event) =>
+									updateContract(activeStep, { blocked_merchants: (e.target as HTMLInputElement).value })}
+							/>
+						{/if}
 					</div>
 				</div>
 			{/if}

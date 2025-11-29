@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.auth.models import User
 from src.modules.auth.repositories import UserRepository
+from src.core.config import settings
 from src.modules.payments.services import PaymentService
 from .models import GrantProgram, Requirement, Stage, UserToGrant
 from .repositories import GrantRepository
@@ -14,6 +15,7 @@ from .schemas import (
     GrantParticipantRoleUpdate,
     GrantProgramCreate,
     GrantProgramRead,
+    GrantBankAccountUpdate,
     RequirementProofSubmit,
     RequirementRead,
     StageRead,
@@ -79,7 +81,7 @@ class GrantService:
 
         total_amount = sum(float(stage.amount) for stage in program.stages)
         deposit_result = await self.payment_service.deposit_grant(
-            participant_id=str(program.bank_account_number), amount=total_amount
+            participant_id=settings.app_bank_account_number, amount=total_amount
         )
         if deposit_result.status != "deposited":
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Grant deposit failed")
@@ -187,6 +189,12 @@ class GrantService:
         if not requirement:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requirement not found")
 
+        if requirement.description and str(requirement.description).startswith("payment_contract_id:"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Proof cannot be submitted for smart-contract enforced stages",
+            )
+
         program = requirement.stage.grant_program
         self._ensure_role(program, current_user, allowed_roles=["grantee"])
         if program.status != "active" or requirement.stage.completion_status != "active":
@@ -207,14 +215,18 @@ class GrantService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stage not found")
 
         program = stage.grant_program
-        self._ensure_role(program, current_user, allowed_roles=["grantor", "supervisor"])
+        contract_requirement = any(
+            req.description and str(req.description).startswith("payment_contract_id:") for req in stage.requirements
+        )
+        allowed_roles = ["grantor", "supervisor"] + (["grantee"] if contract_requirement else [])
+        self._ensure_role(program, current_user, allowed_roles=allowed_roles)
         if program.status != "active":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Grant is not active")
         if stage.completion_status != "active":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage is not active")
 
         pending_reqs = [req for req in stage.requirements if req.status != "completed"]
-        if pending_reqs:
+        if pending_reqs and not contract_requirement:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot complete stage with pending requirements"
             )
@@ -229,7 +241,8 @@ class GrantService:
         await self.session.commit()
         await self.session.refresh(stage)
 
-        await self.payment_service.send_stage_payout(stage)
+        if not contract_requirement:
+            await self.payment_service.send_stage_payout(stage)
         return StageRead.model_validate(stage, from_attributes=True)
 
     async def _ensure_user_exists(self, user_id: str) -> UUID:
@@ -253,6 +266,19 @@ class GrantService:
         if any(role in allowed_roles for role in participant_roles):
             return
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    async def update_bank_account(
+        self, grant_program_id: str, payload: GrantBankAccountUpdate, current_user: User
+    ) -> GrantProgramRead:
+        program_id = self._parse_uuid(grant_program_id)
+        program = await self.repo.get(program_id)
+        if not program:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
+        self._ensure_role(program, current_user, allowed_roles=["grantor"])
+        program.bank_account_number = payload.bank_account_number
+        await self.session.commit()
+        await self.session.refresh(program)
+        return GrantProgramRead.model_validate(program, from_attributes=True)
 
     async def _resolve_user_identifier(self, participant: GrantParticipantCreate) -> UUID:
         if participant.user_email:
