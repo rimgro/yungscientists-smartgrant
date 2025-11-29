@@ -43,12 +43,12 @@
 		/>
 		<ul class="space-y-3 text-sm text-slate-200">
 			<li>• `src/routes/+layout.ts` sets `ssr=false` and `prerender=true`</li>
-			<li>• `(auth)/` login & register; `(app)/` dashboard, grants, profile</li>
+			<li>• `(auth)/` login & register; `(app)/` grants + profile</li>
 			<li>• Global stores: auth session + toasts; API wrapper injects JWT</li>
 			<li>• Tailwind + custom theme.css for Mir palette</li>
 		</ul>
 		<div class="mt-4 flex gap-3">
-			<a class="btn-primary" href="/dashboard">Open dashboard</a>
+			<a class="btn-primary" href="/grants">View grants</a>
 			<a class="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-brand hover:text-brand" href="/grants/new">Launch wizard</a>
 		</div>
 	</Card>

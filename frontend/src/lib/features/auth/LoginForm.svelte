@@ -44,7 +44,7 @@
 	<header class="space-y-2">
 		<p class="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Welcome back</p>
 		<h1 class="text-2xl font-semibold text-slate-100">Sign in to SmartGrant</h1>
-		<p class="text-sm text-slate-400">Access dashboards, create grants, and manage payouts.</p>
+		<p class="text-sm text-slate-400">Access the grants workspace and manage payouts.</p>
 	</header>
 
 	<div class="space-y-4">

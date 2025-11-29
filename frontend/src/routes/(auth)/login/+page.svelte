@@ -19,7 +19,7 @@
 			const session: Session = { token: token.access_token, user: { ...user, role: user.role ?? 'User' } };
 			setSession(session);
 			pushToast({ title: 'Signed in', message: 'Session restored', tone: 'success', timeout: 2500 });
-			await goto('/dashboard');
+			await goto('/grants');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Unable to sign in';
 			pushToast({ title: 'Login failed', message, tone: 'error', timeout: 4000 });

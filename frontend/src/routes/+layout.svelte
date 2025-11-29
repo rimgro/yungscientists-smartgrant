@@ -27,7 +27,6 @@
 	<header class="sticky top-0 z-30 backdrop-blur-md">
 		<div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
 			<a class="flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-100 shadow-soft-lg" href="/">
-				<span class="grid h-10 w-10 place-items-center rounded-2xl bg-brand/20 text-brand-strong">SG</span>
 				<span>SmartGrant</span>
 			</a>
 			<nav class="flex items-center gap-3 text-sm">

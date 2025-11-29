@@ -26,7 +26,6 @@ src/
 │   ├── +layout.ts          # Global CSR settings (ssr = false)
 │   ├── (auth)/             # Public auth pages (login, register)
 │   ├── (app)/              # Protected application routes
-│   │   ├── dashboard/      # Main overview (role-specific)
 │   │   ├── grants/
 │   │   │   ├── [id]/       # Grant details & management
 │   │   │   └── new/        # Grant creation wizard
@@ -56,7 +55,7 @@ src/
   - **Supervisor/Grantor:** Sees "Approve/Reject" actions and "Edit Limits" controls.
 
 ### 3.3 Payments & Contracts UI (`lib/features/payments`)
-**Responsibility:** Dashboard for financial transparency and Smart Contract status.
+**Responsibility:** Financial transparency and Smart Contract status components embedded within grant pages.
 - **Components:**
   - `WalletConnect`: UI to link/display Mir payment system status.
   - `TransactionHistory`: Table displaying ledger events (funds locked, transferred).
