@@ -25,8 +25,5 @@ class PaymentService:
         )
 
     async def deposit_grant(self, *, participant_id: str, amount: float) -> PaymentStatus:
-        """
-        Stubbed deposit used on grant confirmation. Assumes funds are deposited successfully.
-        This will be replaced with a real gateway call later.
-        """
-        return PaymentStatus(transaction_id="local-deposit", status="deposited")
+        response = await self.gateway.deposit(card_number=participant_id, amount=amount, reference="Grant funding")
+        return PaymentStatus(transaction_id=response.get("transaction_id", ""), status=response.get("status", "unknown"))

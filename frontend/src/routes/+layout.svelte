@@ -32,8 +32,11 @@
 			</a>
 			<nav class="flex items-center gap-3 text-sm">
 				{#if $isAuthenticated}
-					<a class="rounded-full px-4 py-2 text-slate-200 transition hover:bg-white/10" href="/dashboard">
-						Dashboard
+					<a class="rounded-full px-4 py-2 text-slate-200 transition hover:bg-white/10" href="/grants">
+						Grants
+					</a>
+					<a class="rounded-full px-4 py-2 text-slate-200 transition hover:bg-white/10" href="/profile">
+						Profile
 					</a>
 					<button class="rounded-full px-4 py-2 text-slate-200 transition hover:bg-white/10" onclick={handleLogout}>
 						Logout

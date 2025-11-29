@@ -16,10 +16,32 @@ class SimplePaymentGateway:
             response.raise_for_status()
             return response.json()
 
-    async def send_payment(self, participant_id: str, amount: float, reference: str) -> dict:
-        payload = {"participant_id": participant_id, "amount": amount, "reference": reference}
+    async def deposit(self, *, card_number: str, amount: float, reference: str | None = None) -> dict:
+        """
+        Top up the app holding account in the bank. Reference is ignored by the fake bank
+        but kept for parity with real gateways.
+        """
+        payload = {"card_number": card_number, "amount": amount, "reference": reference}
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/payments", headers=self._headers(), json=payload, timeout=30.0)
+            response = await client.post(
+                f"{self.base_url}/deposit", headers=self._headers(), json=payload, timeout=30.0
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def send_payment(self, participant_id: str, amount: float, reference: str) -> dict:
+        """
+        In dev we target the fake_bank, which exposes /transfer instead of /payments.
+        We treat participant_id as the destination card/account and use the app holding account as the source.
+        """
+        payload = {
+            "from_card": settings.app_bank_account_number,
+            "to_card": participant_id,
+            "amount": amount,
+            "reference": reference,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{self.base_url}/transfer", headers=self._headers(), json=payload, timeout=30.0)
             response.raise_for_status()
             return response.json()
 

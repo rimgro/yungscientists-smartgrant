@@ -83,7 +83,7 @@ class GrantService:
         deposit_result = await self.payment_service.deposit_grant(
             participant_id=settings.app_bank_account_number, amount=total_amount
         )
-        if deposit_result.status != "deposited":
+        if deposit_result.status not in {"deposited", "completed"}:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Grant deposit failed")
 
         program.status = "active"

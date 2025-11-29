@@ -1,12 +1,11 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { Button, Card } from '$lib/components';
-import StageTracker from '$lib/features/grants/StageTracker.svelte';
 import { api, ApiError } from '$lib/api';
 import { canManageMilestones, getUserRolesForGrant } from '$lib/features/grants/permissions';
 import { pushToast } from '$lib/stores/notifications';
 import { getSession } from '$lib/stores/auth';
-import type { GrantParticipantRole, GrantProgram, PaymentContract, PaymentRuleCheck, PaymentTransaction } from '$lib/types';
+import type { GrantParticipantRole, GrantProgram, PaymentContract, PaymentTransaction } from '$lib/types';
 
 let { params } = $props();
 let grant: GrantProgram | null = $state(null);
@@ -29,21 +28,24 @@ let confirmBusy = $state(false);
 let roleBusyId = $state<string | null>(null);
 let contracts: PaymentContract[] = $state([]);
 let contractsLoading = $state(false);
-let contractError = $state('');
 let selectedContractId = $state('');
 let purchaseCard = $state('1234567812345678');
 let purchaseMcc = $state('5411');
 let purchaseMerchant = $state('demo_merchant');
 let purchaseAmount = $state(100);
-let contractCheck: PaymentRuleCheck | null = $state(null);
-let contractTxn: PaymentTransaction | null = $state(null);
-let contractBusy = $state(false);
 let stagePaymentOpen = $state(false);
 let stagePaymentStageId = $state<string | null>(null);
 let stageContractId: string | null = $state(null);
 let stagePaymentBusy = $state(false);
 let stagePaymentResult: PaymentTransaction | null = $state(null);
 let stagePaymentError = $state('');
+const completedStages = $derived(
+	grant?.stages.filter((stage) => stage.completion_status === 'completed').length ?? 0
+);
+const totalStages = $derived(grant?.stages.length ?? 0);
+const stageProgress = $derived(
+	totalStages === 0 ? 0 : Math.min(100, Math.round((completedStages / totalStages) * 100))
+);
 	const loadGrant = async () => {
 		loading = true;
 		error = '';
@@ -77,7 +79,6 @@ let stagePaymentError = $state('');
 	const loadContracts = async () => {
 		if (!purchaseCard) return;
 		contractsLoading = true;
-		contractError = '';
 		try {
 			const response = await api.get<{ contracts: PaymentContract[] }>(
 				`/payment-middleware/cards/${purchaseCard}/contracts`
@@ -87,7 +88,8 @@ let stagePaymentError = $state('');
 				selectedContractId = contracts[0].contract_id;
 			}
 		} catch (err) {
-			contractError = err instanceof Error ? err.message : 'Unable to load contracts';
+			const message = err instanceof Error ? err.message : 'Unable to load contracts';
+			pushToast({ title: 'Contracts unavailable', message, tone: 'error', timeout: 3000 });
 		} finally {
 			contractsLoading = false;
 		}
@@ -260,7 +262,7 @@ const inviteParticipant = async () => {
 		}
 	};
 
-const confirmGrant = async () => {
+	const confirmGrant = async () => {
 		if (!grant) return;
 		confirmBusy = true;
 		try {
@@ -272,41 +274,6 @@ const confirmGrant = async () => {
 			pushToast({ title: 'Confirm failed', message, tone: 'error', timeout: 3500 });
 		} finally {
 			confirmBusy = false;
-		}
-};
-
-	const executeContract = async (mode: 'dry' | 'process') => {
-		if (!selectedContractId) {
-			pushToast({ title: 'Select a contract', message: 'Choose a contract to run checks.', tone: 'error' });
-			return;
-		}
-		contractBusy = true;
-		contractCheck = null;
-		contractTxn = null;
-		const purchaseInfo = {
-			mcc: purchaseMcc,
-			cost: purchaseAmount,
-			merchant_id: purchaseMerchant,
-			card_number: purchaseCard
-		};
-		try {
-			if (mode === 'dry') {
-				contractCheck = await api.post<PaymentRuleCheck>('/payment-middleware/contracts/execute', {
-					contract_id: selectedContractId,
-					purchase_info: purchaseInfo
-				});
-			} else {
-				contractTxn = await api.post<PaymentTransaction>(
-					`/payment-middleware/process-purchase-with-contract?contract_id=${selectedContractId}`,
-					purchaseInfo
-				);
-				pushToast({ title: 'Purchase processed', tone: 'success', timeout: 2500 });
-			}
-		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Contract call failed';
-			pushToast({ title: 'Contract error', message, tone: 'error', timeout: 3500 });
-		} finally {
-			contractBusy = false;
 		}
 	};
 
@@ -386,10 +353,22 @@ const confirmGrant = async () => {
 	{:else if grant}
 		<div class="grid gap-4 lg:grid-cols-3">
 			<div class="lg:col-span-2 space-y-4">
-				<StageTracker stages={grant.stages} />
-				<Card title="Stages and requirements">
+				<div class="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg">
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							<p class="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Stages</p>
+							<h3 class="text-lg font-semibold text-slate-100">Lifecycle tracker</h3>
+							<p class="text-sm text-slate-400">Monitor progress and manage stage requirements.</p>
+						</div>
+						<span class="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
+							{completedStages}/{totalStages} complete
+						</span>
+					</div>
+					<div class="h-3 overflow-hidden rounded-full bg-white/10">
+						<div class="h-full bg-brand transition-all" style={`width: ${stageProgress}%`}></div>
+					</div>
 					{#if !canManage}
-						<p class="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+						<p class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
 							You can view this grant, but only the grantor or supervisors can mark requirements or stages
 							as complete.
 						</p>
@@ -469,126 +448,9 @@ const confirmGrant = async () => {
 							</li>
 						{/each}
 					</ul>
-				</Card>
+				</div>
 			</div>
 			<div class="space-y-4">
-				<Card
-					title="Payment middleware"
-					description="Execute contract rules before a payout. Only grantees can run payments."
-				>
-					<div class="space-y-3 text-sm text-slate-200">
-						{#if stageContractId}
-							<p class="text-xs text-emerald-200">This stage uses contract {stageContractId}.</p>
-						{:else}
-							<p class="text-xs text-amber-200">No contract linked to this stage.</p>
-						{/if}
-						<div class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-							<p class="font-semibold text-slate-100">Card</p>
-							<p>
-								This is the card number used to charge the purchase. Contracts apply only if this card is
-								listed in "Applicable cards".
-							</p>
-						</div>
-						<div class="grid gap-3 md:grid-cols-2">
-							<label class="space-y-1">
-								<span class="text-xs uppercase tracking-[0.2em] text-slate-400">Card</span>
-								<input
-									class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-									value={purchaseCard}
-									oninput={(e) => {
-										purchaseCard = e.currentTarget.value;
-									}}
-									onchange={loadContracts}
-								/>
-							</label>
-							<label class="space-y-1">
-								<span class="text-xs uppercase tracking-[0.2em] text-slate-400">Contract</span>
-								<select
-									class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:opacity-60"
-									disabled={true}
-									value={stageContractId ?? selectedContractId}
-								>
-									{#if stageContractId}
-										<option value={stageContractId}>{stageContractId}</option>
-									{:else if contracts.length === 0}
-										<option value="">No contracts</option>
-									{:else}
-										{#each contracts as contract}
-											<option value={contract.contract_id}>{contract.name} ({contract.contract_type})</option>
-										{/each}
-									{/if}
-								</select>
-							</label>
-						</div>
-						<div class="grid gap-3 md:grid-cols-3">
-							<label class="space-y-1">
-								<span class="text-xs uppercase tracking-[0.2em] text-slate-400">MCC</span>
-								<input
-									class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-									value={purchaseMcc}
-									oninput={(e) => (purchaseMcc = e.currentTarget.value)}
-								/>
-							</label>
-							<label class="space-y-1">
-								<span class="text-xs uppercase tracking-[0.2em] text-slate-400">Merchant</span>
-								<input
-									class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-									value={purchaseMerchant}
-									oninput={(e) => (purchaseMerchant = e.currentTarget.value)}
-								/>
-							</label>
-							<label class="space-y-1">
-								<span class="text-xs uppercase tracking-[0.2em] text-slate-400">Amount</span>
-								<input
-									type="number"
-									min="1"
-									step="1"
-									class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-									value={purchaseAmount}
-									oninput={(e) => (purchaseAmount = Number(e.currentTarget.value))}
-								/>
-							</label>
-						</div>
-						{#if contractError}
-							<p class="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-								{contractError}
-							</p>
-						{/if}
-						<div class="flex flex-wrap items-center gap-2">
-							<Button size="sm" onclick={() => executeContract('dry')} disabled={contractBusy || !selectedContractId}>
-								{contractBusy ? 'Running…' : 'Dry-run contract'}
-							</Button>
-							<Button
-								size="sm"
-								variant="ghost"
-								onclick={() => executeContract('process')}
-								disabled={contractBusy || !selectedContractId}
-								title="Process purchase with contract enforcement"
-							>
-								{contractBusy ? 'Processing…' : 'Process with contract'}
-							</Button>
-							<Button size="sm" variant="ghost" onclick={loadContracts} disabled={contractsLoading}>
-								{contractsLoading ? 'Refreshing…' : 'Refresh contracts'}
-							</Button>
-						</div>
-						{#if contractCheck}
-							<div class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs">
-								<p class={contractCheck.allowed ? 'text-emerald-200' : 'text-rose-200'}>
-									{contractCheck.allowed ? 'Allowed' : 'Blocked'} · {contractCheck.reason ?? 'No reason provided'}
-								</p>
-								{#if contractCheck.details}
-									<p class="text-slate-400">Details: {JSON.stringify(contractCheck.details)}</p>
-								{/if}
-							</div>
-						{/if}
-						{#if contractTxn}
-							<div class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-emerald-200">
-								<p>Transaction {contractTxn.transaction_id} · {contractTxn.status}</p>
-								<p class="text-slate-300">Amount: {contractTxn.amount} · Type: {contractTxn.type}</p>
-							</div>
-						{/if}
-					</div>
-				</Card>
 				<Card title="Participants" description="Manage who can access this grant.">
 					{#if grant}
 						<ul class="divide-y divide-white/10 text-sm text-slate-200">
